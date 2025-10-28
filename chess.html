@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .game-container {
+            display: flex;
+            gap: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .board {
+            width: 560px;
+            height: 560px;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            border: 2px solid #34495e;
+            background: #34495e;
+            gap: 1px;
+        }
+
+        .cell {
+            width: 70px;
+            height: 70px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.3s;
+        }
+
+        .white {
+            background-color: #ecf0f1;
+        }
+
+        .black {
+            background-color: #95a5a6;
+        }
+
+        .cell.selected {
+            background-color: #e74c3c !important;
+        }
+
+        .cell.valid-move {
+            background-color: #2ecc71 !important;
+        }
+
+        .piece {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .piece:active {
+            cursor: grabbing;
+        }
+
+        .controls {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            min-width: 200px;
+        }
+
+        .status {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .captured {
+            margin-top: 20px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+        }
+
+        .captured h3 {
+            margin-bottom: 10px;
+        }
+
+        .captured-pieces {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            font-size: 24px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background: #3498db;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .coordinates {
+            position: absolute;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .row-coord {
+            left: 5px;
+            top: 5px;
+        }
+
+        .col-coord {
+            right: 5px;
+            bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="board" id="board"></div>
+        <div class="controls">
+            <div class="status" id="status">White's turn</div>
+            <button onclick="resetGame()">New Game</button>
+            <div class="captured">
+                <h3>Captured White Pieces:</h3>
+                <div class="captured-pieces" id="captured-white"></div>
+            </div>
+            <div class="captured">
+                <h3>Captured Black Pieces:</h3>
+                <div class="captured-pieces" id="captured-black"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const initialBoard = [
+            ['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜'],
+            ['♟', '♟', '♟', '♟', '♟', '♟', '♟', '♟'],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['♙', '♙', '♙', '♙', '♙', '♙', '♙', '♙'],
+            ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖']
+        ];
+
+        let board = JSON.parse(JSON.stringify(initialBoard));
+        let selectedCell = null;
+        let currentPlayer = 'white'; // white or black
+        let validMoves = [];
+        let capturedPieces = {
+            white: [],
+            black: []
+        };
+
+        function createBoard() {
+            const boardElement = document.getElementById('board');
+            boardElement.innerHTML = '';
+
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = `cell ${(i + j) % 2 === 0 ? 'white' : 'black'}`;
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+
+                    // Add coordinates
+                    const rowCoord = document.createElement('div');
+                    rowCoord.className = 'coordinates row-coord';
+                    rowCoord.textContent = 8 - i;
+                    if (j === 0) cell.appendChild(rowCoord);
+
+                    const colCoord = document.createElement('div');
+                    colCoord.className = 'coordinates col-coord';
+                    colCoord.textContent = String.fromCharCode(97 + j);
+                    if (i === 7) cell.appendChild(colCoord);
+
+                    if (board[i][j]) {
+                        const piece = document.createElement('div');
+                        piece.className = 'piece';
+                        piece.textContent = board[i][j];
+                        cell.appendChild(piece);
+                    }
+
+                    cell.addEventListener('click', () => handleCellClick(i, j));
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        function handleCellClick(row, col) {
+            const piece = board[row][col];
+            const isPieceWhite = isWhitePiece(piece);
+
+            // Clear previous selection and valid moves
+            clearHighlights();
+
+            // If no piece is selected and clicked on a piece of current player's color
+            if (!selectedCell && piece && isPieceWhite === (currentPlayer === 'white')) {
+                selectedCell = { row, col };
+                highlightCell(row, col, 'selected');
+                showValidMoves(row, col, piece);
+                return;
+            }
+
+            // If a piece is selected and clicked on a valid move location
+            if (selectedCell && isValidMove(row, col)) {
+                movePiece(selectedCell.row, selectedCell.col, row, col);
+                selectedCell = null;
+                switchTurn();
+                return;
+            }
+
+            // Reset selection
+            selectedCell = null;
+        }
+
+        function isWhitePiece(piece) {
+            return '♔♕♖♗♘♙'.includes(piece);
+        }
+
+        function isValidMove(toRow, toCol) {
+            return validMoves.some(move => move.row === toRow && move.col === toCol);
+        }
+
+        function showValidMoves(row, col, piece) {
+            validMoves = getValidMoves(row, col, piece);
+            validMoves.forEach(move => {
+                highlightCell(move.row, move.col, 'valid-move');
+            });
+        }
+
+        function getValidMoves(row, col, piece) {
+            const moves = [];
+            const isWhite = isWhitePiece(piece);
+
+            switch (piece.toLowerCase()) {
+                case '♟': // Pawn
+                    const direction = isWhite ? -1 : 1;
+                    const startRow = isWhite ? 6 : 1;
+
+                    // Forward move
+                    if (!board[row + direction]?.[col]) {
+                        moves.push({ row: row + direction, col });
+                        // Double move from start position
+                        if (row === startRow && !board[row + 2 * direction]?.[col]) {
+                            moves.push({ row: row + 2 * direction, col });
+                        }
+                    }
+
+                    // Capture moves
+                    [[direction, -1], [direction, 1]].forEach(([dRow, dCol]) => {
+                        const newRow = row + dRow;
+                        const newCol = col + dCol;
+                        if (board[newRow]?.[newCol] && isWhitePiece(board[newRow][newCol]) !== isWhite) {
+                            moves.push({ row: newRow, col: newCol });
+                        }
+                    });
+                    break;
+
+                case '♜': // Rook
+                    addStraightMoves(moves, row, col, isWhite);
+                    break;
+
+                case '♝': // Bishop
+                    addDiagonalMoves(moves, row, col, isWhite);
+                    break;
+
+                case '♛': // Queen
+                    addStraightMoves(moves, row, col, isWhite);
+                    addDiagonalMoves(moves, row, col, isWhite);
+                    break;
+
+                case '♚': // King
+                    for (let dRow = -1; dRow <= 1; dRow++) {
+                        for (let dCol = -1; dCol <= 1; dCol++) {
+                            if (dRow === 0 && dCol === 0) continue;
+                            const newRow = row + dRow;
+                            const newCol = col + dCol;
+                            if (isValidPosition(newRow, newCol) && 
+                                (!board[newRow][newCol] || isWhitePiece(board[newRow][newCol]) !== isWhite)) {
+                                moves.push({ row: newRow, col: newCol });
+                            }
+                        }
+                    }
+                    break;
+
+                case '♞': // Knight
+                    const knightMoves = [
+                        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                        [1, -2], [1, 2], [2, -1], [2, 1]
+                    ];
+                    knightMoves.forEach(([dRow, dCol]) => {
+                        const newRow = row + dRow;
+                        const newCol = col + dCol;
+                        if (isValidPosition(newRow, newCol) && 
+                            (!board[newRow][newCol] || isWhitePiece(board[newRow][newCol]) !== isWhite)) {
+                            moves.push({ row: newRow, col: newCol });
+                        }
+                    });
+                    break;
+            }
+
+            return moves.filter(move => isValidPosition(move.row, move.col));
+        }
+
+        function addStraightMoves(moves, row, col, isWhite) {
+            const directions = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            directions.forEach(([dRow, dCol]) => {
+                let newRow = row + dRow;
+                let newCol = col + dCol;
+                while (isValidPosition(newRow, newCol)) {
+                    if (!board[newRow][newCol]) {
+                        moves.push({ row: newRow, col: newCol });
+                    } else {
+                        if (isWhitePiece(board[newRow][newCol]) !== isWhite) {
+                            moves.push({ row: newRow, col: newCol });
+                        }
+                        break;
+                    }
+                    newRow += dRow;
+                    newCol += dCol;
+                }
+            });
+        }
+
+        function addDiagonalMoves(moves, row, col, isWhite) {
+            const directions = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+            directions.forEach(([dRow, dCol]) => {
+                let newRow = row + dRow;
+                let newCol = col + dCol;
+                while (isValidPosition(newRow, newCol)) {
+                    if (!board[newRow][newCol]) {
+                        moves.push({ row: newRow, col: newCol });
+                    } else {
+                        if (isWhitePiece(board[newRow][newCol]) !== isWhite) {
+                            moves.push({ row: newRow, col: newCol });
+                        }
+                        break;
+                    }
+                    newRow += dRow;
+                    newCol += dCol;
+                }
+            });
+        }
+
+        function isValidPosition(row, col) {
+            return row >= 0 && row < 8 && col >= 0 && col < 8;
+        }
+
+        function movePiece(fromRow, fromCol, toRow, toCol) {
+            const capturedPiece = board[toRow][toCol];
+            if (capturedPiece) {
+                const color = isWhitePiece(capturedPiece) ? 'white' : 'black';
+                capturedPieces[color].push(capturedPiece);
+                updateCapturedPieces();
+            }
+
+            board[toRow][toCol] = board[fromRow][fromCol];
+            board[fromRow][fromCol] = '';
+            createBoard();
+        }
+
+        function updateCapturedPieces() {
+            document.getElementById('captured-white').textContent = capturedPieces.white.join(' ');
+            document.getElementById('captured-black').textContent = capturedPieces.black.join(' ');
+        }
+
+        function switchTurn() {
+            currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+            document.getElementById('status').textContent = `${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)}'s turn`;
+        }
+
+        function highlightCell(row, col, className) {
+            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (cell) cell.classList.add(className);
+        }
+
+        function clearHighlights() {
+            document.querySelectorAll('.cell').forEach(cell => {
+                cell.classList.remove('selected', 'valid-move');
+            });
+            validMoves = [];
+        }
+
+        function resetGame() {
+            board = JSON.parse(JSON.stringify(initialBoard));
+            selectedCell = null;
+            currentPlayer = 'white';
+            validMoves = [];
+            capturedPieces = { white: [], black: [] };
+            createBoard();
+            updateCapturedPieces();
+            document.getElementById('status').textContent = "White's turn";
+        }
+
+        // Initialize the game
+        createBoard();
+    </script>
+</body>
+</html>
